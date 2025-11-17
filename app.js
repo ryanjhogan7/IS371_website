@@ -1,8 +1,40 @@
-// Import Firebase modules
-import { initAuth, signUpUser, signInUser, currentUser, showNotification } from './auth.js';
-import { createListing, getAllListings, getFilteredListings, deleteListing, sendContactMessage } from './firestore.js';
+/*
+ * GolfClub Auctions - Main Application File
+ * IS 371 Final Project by Ryan Hogan and Alan Sogolov
+ *
+ * This file contains all the JavaScript logic for our Single Page Application:
+ * - Firebase Authentication (sign up, sign in, sign out)
+ * - Firestore Database operations (create, read, delete listings)
+ * - Page navigation and UI updates
+ * - Form handling and filtering
+ */
 
-// Page content templates
+// ==================== FIREBASE IMPORTS ====================
+// Import Firebase configuration and necessary functions
+import { auth, db } from './firebase-config.js';
+import {
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signOut,
+    onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import {
+    collection,
+    addDoc,
+    getDocs,
+    deleteDoc,
+    doc,
+    query,
+    orderBy,
+    where,
+    serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+// ==================== GLOBAL VARIABLES ====================
+let currentUser = null;  // Stores the currently logged-in user (null if not logged in)
+
+// ==================== PAGE CONTENT TEMPLATES ====================
+// These are the different "pages" of our Single Page Application
 const pages = {
     home: `
         <!-- Hero Section -->
@@ -22,7 +54,7 @@ const pages = {
                             <h2 class="subtitle is-3 has-text-white mb-6">
                                 Buy and sell used golf clubs
                             </h2>
-                            
+
                             <div class="columns is-mobile is-multiline">
                                 <div class="column is-half-mobile is-6-tablet is-6-desktop">
                                     <div class="box has-text-centered p-6" onclick="loadPage('browse')" style="cursor: pointer; height: 100%;">
@@ -39,7 +71,7 @@ const pages = {
                                         </button>
                                     </div>
                                 </div>
-                                
+
                                 <div class="column is-half-mobile is-6-tablet is-6-desktop">
                                     <div class="box has-text-centered p-6" onclick="loadPage('create')" style="cursor: pointer; height: 100%;">
                                         <span class="icon is-large has-text-primary mb-4">
@@ -252,37 +284,6 @@ const pages = {
                                     <p class="help">Be as detailed as possible to attract buyers</p>
                                 </div>
 
-                                <div class="field">
-                                    <label class="label">Upload Photos</label>
-                                    <div class="file has-name is-fullwidth">
-                                        <label class="file-label">
-                                            <input class="file-input" type="file" name="photos" multiple accept="image/*">
-                                            <span class="file-cta">
-                                                <span class="file-icon">
-                                                    <i class="fas fa-upload"></i>
-                                                </span>
-                                                <span class="file-label">
-                                                    Choose photos…
-                                                </span>
-                                            </span>
-                                            <span class="file-name">
-                                                No file selected
-                                            </span>
-                                        </label>
-                                    </div>
-                                    <p class="help">Upload up to 5 photos (JPG, PNG)</p>
-                                </div>
-
-                                <div class="field">
-                                    <label class="label">Contact Information</label>
-                                    <div class="control has-icons-left">
-                                        <input class="input" type="email" placeholder="your-email@example.com" required>
-                                        <span class="icon is-left">
-                                            <i class="fas fa-envelope"></i>
-                                        </span>
-                                    </div>
-                                </div>
-
                                 <div class="field is-grouped">
                                     <div class="control">
                                         <button class="button is-primary" type="submit">
@@ -315,203 +316,404 @@ const pages = {
     `
 };
 
-// Make functions globally accessible
-window.loadPage = loadPage;
-window.openModal = openModal;
-window.closeModal = closeModal;
-window.openContactModal = openContactModal;
+// ==================== AUTHENTICATION FUNCTIONS ====================
 
-// Function to load different pages
+/**
+ * Initialize authentication state listener
+ * This watches for when users sign in or out and updates the UI accordingly
+ */
+function initAuth() {
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            // User is signed in
+            currentUser = user;
+            updateNavBar(true);
+        } else {
+            // User is signed out
+            currentUser = null;
+            updateNavBar(false);
+        }
+    });
+}
+
+/**
+ * Sign up a new user
+ * Creates a new account in Firebase Authentication
+ */
+async function signUp(email, password, fullName) {
+    try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        alert('Account created successfully! Welcome, ' + fullName);
+        return true;
+    } catch (error) {
+        alert('Sign up failed: ' + error.message);
+        return false;
+    }
+}
+
+/**
+ * Sign in an existing user
+ */
+async function signIn(email, password) {
+    try {
+        await signInWithEmailAndPassword(auth, email, password);
+        alert('Signed in successfully!');
+        return true;
+    } catch (error) {
+        alert('Sign in failed: ' + error.message);
+        return false;
+    }
+}
+
+/**
+ * Sign out the current user
+ */
+async function signOutUser() {
+    try {
+        await signOut(auth);
+        alert('Signed out successfully!');
+        loadPage('home');
+        return true;
+    } catch (error) {
+        alert('Error signing out: ' + error.message);
+        return false;
+    }
+}
+
+/**
+ * Update navigation bar based on authentication state
+ * Shows different buttons depending on whether user is logged in
+ */
+function updateNavBar(isLoggedIn) {
+    const navButtons = document.querySelector('.navbar-end .buttons');
+
+    if (isLoggedIn && currentUser) {
+        // User is logged in - show welcome message and sign out button
+        navButtons.innerHTML = `
+            <div class="navbar-item has-text-white">
+                Welcome, ${currentUser.email}
+            </div>
+            <div class="navbar-item">
+                <button class="button is-light" onclick="signOutUser()">
+                    Sign Out
+                </button>
+            </div>
+        `;
+    } else {
+        // User is not logged in - show sign in and sign up buttons
+        navButtons.innerHTML = `
+            <button class="button is-light" onclick="openModal('signinModal')">
+                <strong>Sign In</strong>
+            </button>
+            <button class="button is-primary" onclick="openModal('signupModal')">
+                <strong>Sign Up</strong>
+            </button>
+        `;
+    }
+}
+
+// ==================== FIRESTORE DATABASE FUNCTIONS ====================
+
+/**
+ * Create a new listing in Firestore
+ * Adds a new golf club listing to the database
+ */
+async function createListing(listingData) {
+    try {
+        // Check if user is signed in
+        if (!currentUser) {
+            alert('Please sign in to create a listing');
+            return false;
+        }
+
+        // Add user info and timestamp to the listing
+        const listing = {
+            ...listingData,
+            userId: currentUser.uid,
+            userEmail: currentUser.email,
+            createdAt: serverTimestamp()
+        };
+
+        // Add to Firestore
+        await addDoc(collection(db, "listings"), listing);
+        alert('Listing created successfully!');
+        return true;
+    } catch (error) {
+        alert('Error creating listing: ' + error.message);
+        return false;
+    }
+}
+
+/**
+ * Get all listings from Firestore
+ * Returns an array of all golf club listings, newest first
+ */
+async function getAllListings() {
+    try {
+        // Create a query to get all listings, ordered by creation date
+        const q = query(collection(db, "listings"), orderBy("createdAt", "desc"));
+        const querySnapshot = await getDocs(q);
+
+        // Convert Firestore documents to an array of listing objects
+        const listings = [];
+        querySnapshot.forEach((doc) => {
+            listings.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+
+        return listings;
+    } catch (error) {
+        alert('Error loading listings: ' + error.message);
+        return [];
+    }
+}
+
+/**
+ * Filter listings by club type and price range
+ */
+async function getFilteredListings(clubType, priceRange) {
+    try {
+        let listings = await getAllListings();
+
+        // Filter by club type if specified
+        if (clubType && clubType !== "All Types") {
+            listings = listings.filter(listing => listing.clubType === clubType);
+        }
+
+        // Filter by price range if specified
+        if (priceRange && priceRange !== "Any Price") {
+            listings = listings.filter(listing => {
+                const price = parseFloat(listing.price);
+                switch (priceRange) {
+                    case "Under $100":
+                        return price < 100;
+                    case "$100 - $250":
+                        return price >= 100 && price <= 250;
+                    case "$250 - $500":
+                        return price >= 250 && price <= 500;
+                    case "$500+":
+                        return price >= 500;
+                    default:
+                        return true;
+                }
+            });
+        }
+
+        return listings;
+    } catch (error) {
+        alert('Error filtering listings: ' + error.message);
+        return [];
+    }
+}
+
+/**
+ * Delete a listing from Firestore
+ * Users can only delete their own listings
+ */
+async function deleteListing(listingId) {
+    try {
+        if (!currentUser) {
+            alert('Please sign in to delete listings');
+            return false;
+        }
+
+        // Delete from Firestore
+        await deleteDoc(doc(db, "listings", listingId));
+        alert('Listing deleted successfully!');
+        return true;
+    } catch (error) {
+        alert('Error deleting listing: ' + error.message);
+        return false;
+    }
+}
+
+// ==================== PAGE NAVIGATION FUNCTIONS ====================
+
+/**
+ * Load a different page in our Single Page Application
+ * Changes the main content area without refreshing the browser
+ */
 function loadPage(pageName) {
     const mainContent = document.getElementById('main-content');
     mainContent.innerHTML = pages[pageName] || pages.home;
 
-    // Update active navigation link
-    const navLinks = document.querySelectorAll('.navbar-item');
-    navLinks.forEach(link => {
-        link.classList.remove('is-active');
-    });
+    // Set up event listeners for the new page content
+    attachEventListeners(pageName);
 
-    // Attach event listeners to forms on the loaded page
-    attachPageEventListeners(pageName);
-
-    // Load listings if on browse page
+    // Load listings if we're on the browse page
     if (pageName === 'browse') {
-        loadListings();
+        displayListings();
     }
 
-    // Scroll to top
+    // Scroll to top of page
     window.scrollTo(0, 0);
 }
 
-// Function to attach event listeners to dynamically loaded content
-function attachPageEventListeners(pageName) {
+/**
+ * Attach event listeners to forms and buttons on the current page
+ */
+function attachEventListeners(pageName) {
     if (pageName === 'create') {
-        const createListingForm = document.getElementById('createListingForm');
-        if (createListingForm) {
-            createListingForm.addEventListener('submit', async (e) => {
+        // Handle create listing form submission
+        const form = document.getElementById('createListingForm');
+        if (form) {
+            form.addEventListener('submit', async (e) => {
                 e.preventDefault();
 
+                // Check if user is signed in
                 if (!currentUser) {
-                    showNotification('Please sign in to create a listing', 'warning');
+                    alert('Please sign in to create a listing');
                     openModal('signinModal');
                     return;
                 }
 
                 // Get form data
-                const formData = new FormData(createListingForm);
                 const listingData = {
-                    clubName: createListingForm.querySelector('input[type="text"]').value,
-                    brand: createListingForm.querySelectorAll('select')[0].value,
-                    clubType: createListingForm.querySelectorAll('select')[1].value,
-                    condition: createListingForm.querySelectorAll('select')[2].value,
-                    price: createListingForm.querySelector('input[type="number"]').value,
-                    description: createListingForm.querySelector('textarea').value,
-                    contactEmail: createListingForm.querySelector('input[type="email"]').value
+                    clubName: form.querySelector('input[type="text"]').value,
+                    brand: form.querySelectorAll('select')[0].value,
+                    clubType: form.querySelectorAll('select')[1].value,
+                    condition: form.querySelectorAll('select')[2].value,
+                    price: form.querySelector('input[type="number"]').value,
+                    description: form.querySelector('textarea').value
                 };
 
                 // Validate required fields
                 if (!listingData.clubName || !listingData.clubType || !listingData.condition || !listingData.price || !listingData.description) {
-                    showNotification('Please fill in all required fields', 'warning');
+                    alert('Please fill in all required fields');
                     return;
                 }
 
-                // Create listing in Firestore
-                const result = await createListing(listingData);
-
-                if (result.success) {
-                    showNotification('Listing created successfully!', 'success');
-                    createListingForm.reset();
+                // Create the listing
+                const success = await createListing(listingData);
+                if (success) {
+                    form.reset();
                     loadPage('browse');
-                } else {
-                    showNotification('Error creating listing: ' + result.error, 'danger');
                 }
             });
         }
     } else if (pageName === 'browse') {
-        // Attach filter event listeners
-        const applyFiltersBtn = document.getElementById('applyFiltersBtn');
-        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+        // Handle filter buttons
+        const applyBtn = document.getElementById('applyFiltersBtn');
+        const clearBtn = document.getElementById('clearFiltersBtn');
 
-        if (applyFiltersBtn) {
-            applyFiltersBtn.addEventListener('click', () => {
+        if (applyBtn) {
+            applyBtn.addEventListener('click', () => {
                 const clubType = document.getElementById('clubTypeFilter').value;
                 const priceRange = document.getElementById('priceRangeFilter').value;
-                loadListings(clubType, priceRange);
+                displayListings(clubType, priceRange);
             });
         }
 
-        if (clearFiltersBtn) {
-            clearFiltersBtn.addEventListener('click', () => {
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
                 document.getElementById('clubTypeFilter').value = 'All Types';
                 document.getElementById('priceRangeFilter').value = 'Any Price';
-                loadListings();
+                displayListings();
             });
         }
     }
 }
 
-// Function to load listings from Firestore
-async function loadListings(clubType = null, priceRange = null) {
-    const listingsContainer = document.getElementById('listings-container');
-    const listingsCount = document.getElementById('listings-count');
+/**
+ * Display listings on the browse page
+ * Fetches listings from Firestore and creates HTML cards for each one
+ */
+async function displayListings(clubType = null, priceRange = null) {
+    const container = document.getElementById('listings-container');
+    const countElement = document.getElementById('listings-count');
 
-    if (!listingsContainer || !listingsCount) return;
+    if (!container || !countElement) return;
 
-    // Show loading state
-    listingsCount.textContent = 'Loading listings...';
+    // Show loading message
+    countElement.textContent = 'Loading listings...';
 
-    // Clear existing listings (keep the count element)
-    const existingListings = listingsContainer.querySelectorAll('.column:not(:first-child)');
-    existingListings.forEach(el => el.remove());
+    // Clear existing listings (except the count element)
+    const existingCards = container.querySelectorAll('.column:not(:first-child)');
+    existingCards.forEach(el => el.remove());
 
-    // Fetch listings from Firestore
-    const result = await getFilteredListings(clubType, priceRange);
+    // Get filtered listings from Firestore
+    const listings = await getFilteredListings(clubType, priceRange);
 
-    if (result.success) {
-        const listings = result.listings;
+    // Update count
+    countElement.textContent = `Showing ${listings.length} listing${listings.length !== 1 ? 's' : ''}`;
 
-        // Update count
-        listingsCount.textContent = `Showing ${listings.length} listing${listings.length !== 1 ? 's' : ''}`;
-
-        if (listings.length === 0) {
-            const noListingsMsg = document.createElement('div');
-            noListingsMsg.className = 'column is-12';
-            noListingsMsg.innerHTML = `
-                <div class="notification is-warning has-text-centered">
-                    <p>No listings found. ${currentUser ? 'Be the first to create one!' : 'Sign in to create a listing.'}</p>
-                </div>
-            `;
-            listingsContainer.appendChild(noListingsMsg);
-            return;
-        }
-
-        // Display listings
-        listings.forEach(listing => {
-            const listingCard = document.createElement('div');
-            listingCard.className = 'column is-3';
-
-            const isOwner = currentUser && listing.userId === currentUser.uid;
-            const deleteButton = isOwner ? `
-                <button class="button is-danger is-small is-fullwidth mt-2" onclick="handleDeleteListing('${listing.id}')">
-                    <span class="icon"><i class="fas fa-trash"></i></span>
-                    <span>Delete</span>
-                </button>
-            ` : '';
-
-            listingCard.innerHTML = `
-                <div class="card">
-                    <div class="card-image">
-                        <figure class="image is-4by3">
-                            <img src="https://bulma.io/images/placeholders/640x480.png" alt="${listing.clubName}">
-                        </figure>
-                    </div>
-                    <div class="card-content">
-                        <p class="title is-5">${listing.clubName}</p>
-                        <p class="subtitle is-6 has-text-grey">${listing.condition} - ${listing.brand || 'No brand'}</p>
-                        <div class="content">
-                            <p class="is-size-7 mb-2">${listing.description.substring(0, 100)}${listing.description.length > 100 ? '...' : ''}</p>
-                            <p class="is-size-7 has-text-grey mb-3">
-                                <span class="icon is-small"><i class="fas fa-user"></i></span>
-                                ${listing.userName}
-                            </p>
-                            <div class="mb-3">
-                                <span class="bid-price">$${listing.price}</span>
-                            </div>
-                            <button class="button is-primary is-fullwidth" onclick="openContactModal('${listing.clubName}', '${listing.id}')">
-                                <span class="icon"><i class="fas fa-envelope"></i></span>
-                                <span>Contact Seller</span>
-                            </button>
-                            ${deleteButton}
-                        </div>
-                    </div>
-                </div>
-            `;
-            listingsContainer.appendChild(listingCard);
-        });
-    } else {
-        listingsCount.textContent = 'Error loading listings';
-        showNotification('Error loading listings: ' + result.error, 'danger');
+    // Show message if no listings found
+    if (listings.length === 0) {
+        const message = document.createElement('div');
+        message.className = 'column is-12';
+        message.innerHTML = `
+            <div class="notification is-warning has-text-centered">
+                <p>No listings found. ${currentUser ? 'Be the first to create one!' : 'Sign in to create a listing.'}</p>
+            </div>
+        `;
+        container.appendChild(message);
+        return;
     }
+
+    // Create a card for each listing
+    listings.forEach(listing => {
+        const card = document.createElement('div');
+        card.className = 'column is-3';
+
+        // Only show delete button if user owns this listing
+        const isOwner = currentUser && listing.userId === currentUser.uid;
+        const deleteBtn = isOwner ? `
+            <button class="button is-danger is-small is-fullwidth mt-2" onclick="handleDelete('${listing.id}')">
+                <span class="icon"><i class="fas fa-trash"></i></span>
+                <span>Delete</span>
+            </button>
+        ` : '';
+
+        card.innerHTML = `
+            <div class="card">
+                <div class="card-image">
+                    <figure class="image is-4by3">
+                        <img src="https://bulma.io/images/placeholders/640x480.png" alt="${listing.clubName}">
+                    </figure>
+                </div>
+                <div class="card-content">
+                    <p class="title is-5">${listing.clubName}</p>
+                    <p class="subtitle is-6 has-text-grey">${listing.condition} - ${listing.brand || 'No brand'}</p>
+                    <div class="content">
+                        <p class="is-size-7 mb-2">${listing.description.substring(0, 100)}${listing.description.length > 100 ? '...' : ''}</p>
+                        <p class="is-size-7 has-text-grey mb-3">
+                            <span class="icon is-small"><i class="fas fa-user"></i></span>
+                            Seller: ${listing.userEmail}
+                        </p>
+                        <div class="mb-3">
+                            <span class="bid-price">$${listing.price}</span>
+                        </div>
+                        ${deleteBtn}
+                    </div>
+                </div>
+            </div>
+        `;
+        container.appendChild(card);
+    });
 }
 
-// Function to handle listing deletion
-window.handleDeleteListing = async function(listingId) {
+/**
+ * Handle deleting a listing
+ */
+async function handleDelete(listingId) {
     if (!confirm('Are you sure you want to delete this listing?')) {
         return;
     }
 
-    const result = await deleteListing(listingId);
-
-    if (result.success) {
-        showNotification('Listing deleted successfully!', 'success');
-        loadListings(); // Reload listings
-    } else {
-        showNotification('Error deleting listing: ' + result.error, 'danger');
+    const success = await deleteListing(listingId);
+    if (success) {
+        // Reload listings to show updated list
+        displayListings();
     }
-};
+}
 
-// Function to open modals
+// ==================== MODAL FUNCTIONS ====================
+
+/**
+ * Open a modal dialog
+ */
 function openModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) {
@@ -519,7 +721,9 @@ function openModal(modalId) {
     }
 }
 
-// Function to close modals
+/**
+ * Close a modal dialog
+ */
 function closeModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) {
@@ -527,15 +731,15 @@ function closeModal(modalId) {
     }
 }
 
-// Function to open contact modal with item details
-let currentContactListingId = null;
-function openContactModal(itemName, listingId) {
-    currentContactListingId = listingId;
-    document.getElementById('contactItemName').textContent = itemName;
-    openModal('contactModal');
-}
+// ==================== MAKE FUNCTIONS AVAILABLE TO HTML ====================
+// These functions are called from onclick attributes in HTML
+window.loadPage = loadPage;
+window.openModal = openModal;
+window.closeModal = closeModal;
+window.signOutUser = signOutUser;
+window.handleDelete = handleDelete;
 
-// Hamburger menu toggle for mobile
+// ==================== INITIALIZE APP WHEN PAGE LOADS ====================
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize Firebase authentication
     initAuth();
@@ -543,23 +747,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load home page by default
     loadPage('home');
 
-    // Get all "navbar-burger" elements
-    const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
-
-    // Add a click event on each of them
-    $navbarBurgers.forEach(el => {
-        el.addEventListener('click', () => {
-            // Get the target from the "data-target" attribute
-            const target = el.dataset.target;
-            const $target = document.getElementById(target);
-
-            // Toggle the "is-active" class on both the "navbar-burger" and the "navbar-menu"
-            el.classList.toggle('is-active');
-            $target.classList.toggle('is-active');
+    // Set up mobile hamburger menu
+    const burgers = document.querySelectorAll('.navbar-burger');
+    burgers.forEach(burger => {
+        burger.addEventListener('click', () => {
+            const target = document.getElementById(burger.dataset.target);
+            burger.classList.toggle('is-active');
+            target.classList.toggle('is-active');
         });
     });
 
-    // Sign up form submission
+    // Handle sign up form
     const signupForm = document.getElementById('signupForm');
     if (signupForm) {
         signupForm.addEventListener('submit', async (e) => {
@@ -572,30 +770,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Validate passwords match
             if (password !== confirmPassword) {
-                showNotification('Passwords do not match', 'danger');
+                alert('Passwords do not match');
                 return;
             }
 
             // Validate password length
             if (password.length < 6) {
-                showNotification('Password must be at least 6 characters', 'danger');
+                alert('Password must be at least 6 characters');
                 return;
             }
 
-            // Sign up user
-            const result = await signUpUser(email, password, fullName);
-
-            if (result.success) {
-                showNotification('Account created successfully! Welcome, ' + fullName, 'success');
+            // Sign up the user
+            const success = await signUp(email, password, fullName);
+            if (success) {
                 signupForm.reset();
                 closeModal('signupModal');
-            } else {
-                showNotification('Sign up failed: ' + result.error, 'danger');
             }
         });
     }
 
-    // Sign in form submission
+    // Handle sign in form
     const signinForm = document.getElementById('signinForm');
     if (signinForm) {
         signinForm.addEventListener('submit', async (e) => {
@@ -604,53 +798,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const email = signinForm.querySelector('input[type="email"]').value;
             const password = signinForm.querySelector('input[type="password"]').value;
 
-            // Sign in user
-            const result = await signInUser(email, password);
-
-            if (result.success) {
-                showNotification('Signed in successfully!', 'success');
+            // Sign in the user
+            const success = await signIn(email, password);
+            if (success) {
                 signinForm.reset();
                 closeModal('signinModal');
-            } else {
-                showNotification('Sign in failed: ' + result.error, 'danger');
             }
         });
     }
 
-    // Contact form submission
-    const contactForm = document.getElementById('contactForm');
-    if (contactForm) {
-        contactForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            if (!currentUser) {
-                showNotification('Please sign in to contact sellers', 'warning');
-                closeModal('contactModal');
-                openModal('signinModal');
-                return;
-            }
-
-            const message = contactForm.querySelector('textarea').value;
-
-            if (!currentContactListingId) {
-                showNotification('Error: No listing selected', 'danger');
-                return;
-            }
-
-            // Send message to Firestore
-            const result = await sendContactMessage(currentContactListingId, message);
-
-            if (result.success) {
-                showNotification('Message sent to seller!', 'success');
-                contactForm.reset();
-                closeModal('contactModal');
-            } else {
-                showNotification('Error sending message: ' + result.error, 'danger');
-            }
-        });
-    }
-
-    // Close modal when clicking outside
+    // Close modals when clicking outside
     document.querySelectorAll('.modal-background').forEach(bg => {
         bg.addEventListener('click', (e) => {
             const modal = e.target.closest('.modal');

@@ -19,7 +19,7 @@ This is a fully-functional Single Page Application (SPA) for buying and selling 
 
 #### 2. **Cloud Firestore Database**
 - ✅ Real-time database integration
-- ✅ Three collections: `users`, `listings`, `messages`
+- ✅ One collection: `listings` (keeps it simple for students)
 - ✅ Automatic data synchronization
 - ✅ Server-side timestamps for all records
 
@@ -29,24 +29,28 @@ This is a fully-functional Single Page Application (SPA) for buying and selling 
 - ✅ **Update:** (Foundation laid for future enhancement)
 - ✅ **Delete:** Users can delete their own listings
 
-#### 4. **Advanced Features**
+#### 4. **Features**
 - ✅ Filter listings by club type (Driver, Putter, Iron Set, etc.)
 - ✅ Filter listings by price range (Under $100, $100-$250, etc.)
-- ✅ Contact seller functionality (messages stored in Firestore)
 - ✅ User ownership verification (users can only delete their own listings)
 - ✅ Dynamic UI updates based on authentication state
-- ✅ Real-time notifications for user actions
+- ✅ Simple, easy-to-understand code structure for learning
 
-#### 5. **File Structure**
+#### 5. **Simplified File Structure** (Updated for clarity)
 ```
 IS371_website/
-├── index.html              # Main HTML file (SPA)
-├── app.js                  # Main application logic (ES6 module)
-├── firebase-config.js      # Firebase configuration & initialization
-├── auth.js                 # Authentication module
-├── firestore.js           # Firestore database operations (CRUD)
-└── README.md              # This file
+├── index.html              # Main HTML file with all UI (SPA)
+├── app.js                  # All JavaScript logic (auth, database, navigation)
+├── firebase-config.js      # Firebase initialization (simple config file)
+└── README.md              # Project documentation
 ```
+
+**The codebase has been simplified for student learning:**
+- Only 2 JavaScript files (instead of 4)
+- All application logic in one file (app.js) with clear sections
+- Simple alert() messages for user feedback
+- Extensive comments explaining each function
+- No unnecessary complexity - just the required features
 
 ## What Changed from Milestone 2a
 
@@ -70,18 +74,22 @@ IS371_website/
 - Modals open/close dynamically via JavaScript
 - Forms are ready for Firebase integration in Milestone 3
 
-## Complete File Structure
+## Project Files
 
 ```
 IS371_website/
-├── index.html              # Main HTML file (SPA) - All UI components
-├── app.js                  # Main application logic with ES6 modules
-├── firebase-config.js      # Firebase initialization (auth + firestore)
-├── auth.js                 # Authentication module (sign up/in/out)
-├── firestore.js           # Firestore CRUD operations
+├── index.html              # Main HTML file with all UI (SPA)
+├── app.js                  # All JavaScript (800 lines, well-commented)
+├── firebase-config.js      # Firebase initialization (simple, 30 lines)
 ├── README.md              # Project documentation
 └── IS 371 Final Project (2).docx  # Project requirements document
 ```
+
+**Why this structure is good for learning:**
+- Students can see all the logic flow in one file (app.js)
+- Clear sections with comments make it easy to find things
+- No jumping between multiple files to understand one feature
+- Simple enough to understand in one semester
 
 ## Key Features Implemented
 
@@ -210,7 +218,7 @@ All Milestone 3 requirements have been successfully implemented:
 1. Click "Browse Auctions" to see all listings
 2. Use the filter dropdowns to narrow by club type or price
 3. Click "Apply Filters" to see filtered results
-4. Click "Contact Seller" to send a message
+4. See the seller's email address on each listing to contact them
 
 ### To Delete Your Listings:
 1. Browse to the "Browse Auctions" page
@@ -238,19 +246,18 @@ All Milestone 3 requirements have been successfully implemented:
 4. Create a new golf club listing (data saved to Firestore)
 5. Browse listings page - show real-time data from database
 6. Apply filters by club type and price range
-7. Contact seller - message stored in Firestore
-8. Delete own listing - demonstrate ownership verification
-9. Sign out - show authentication state change
-10. Test mobile responsive view with hamburger menu
+7. Delete own listing - demonstrate ownership verification
+8. Sign out - show authentication state change
+9. Test mobile responsive view with hamburger menu
 
 **Technical Highlights:**
-- ES6 module architecture for clean code separation
+- Simple ES6 module structure (just 2 JS files)
 - Firebase Authentication with email/password
-- Cloud Firestore NoSQL database with three collections
+- Cloud Firestore NoSQL database (one "listings" collection)
 - Real-time data synchronization
-- Client-side and server-side validation
+- Client-side validation with simple alerts
 - Security: users can only delete their own listings
-- Modular JavaScript (auth.js, firestore.js, firebase-config.js)
+- Well-commented code perfect for learning (800 lines, clear sections)
 
 ## Browser Compatibility
 
