@@ -11,7 +11,7 @@
 
 // ==================== FIREBASE IMPORTS ====================
 // Import Firebase configuration and necessary functions
-import { auth, db } from './firebase-config.js';
+import { auth, db, storage } from './firebase-config.js';
 import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
@@ -29,9 +29,75 @@ import {
     where,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import {
+    ref,
+    uploadBytes,
+    getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
 // ==================== GLOBAL VARIABLES ====================
 let currentUser = null;  // Stores the currently logged-in user (null if not logged in)
+
+// ==================== NOTIFICATION SYSTEM ====================
+
+/**
+ * Show a notification message instead of using alert()
+ * @param {string} message - The message to display
+ * @param {string} type - The type of notification: 'success', 'error', 'warning', 'info'
+ */
+function showNotification(message, type = 'info') {
+    const container = document.getElementById('notification-container');
+    if (!container) return;
+
+    // Determine notification color based on type
+    let notificationClass = 'is-info';
+    let iconClass = 'fa-info-circle';
+
+    switch(type) {
+        case 'success':
+            notificationClass = 'is-success';
+            iconClass = 'fa-check-circle';
+            break;
+        case 'error':
+            notificationClass = 'is-danger';
+            iconClass = 'fa-exclamation-circle';
+            break;
+        case 'warning':
+            notificationClass = 'is-warning';
+            iconClass = 'fa-exclamation-triangle';
+            break;
+    }
+
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification ${notificationClass} mb-3`;
+    notification.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
+    notification.innerHTML = `
+        <button class="delete"></button>
+        <span class="icon">
+            <i class="fas ${iconClass}"></i>
+        </span>
+        <span>${message}</span>
+    `;
+
+    // Add to container
+    container.appendChild(notification);
+
+    // Add delete functionality
+    const deleteBtn = notification.querySelector('.delete');
+    deleteBtn.addEventListener('click', () => {
+        notification.style.animation = 'fadeOut 0.3s';
+        setTimeout(() => notification.remove(), 300);
+    });
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.style.animation = 'fadeOut 0.3s';
+            setTimeout(() => notification.remove(), 300);
+        }
+    }, 5000);
+}
 
 // ==================== PAGE CONTENT TEMPLATES ====================
 // These are the different "pages" of our Single Page Application
@@ -284,6 +350,29 @@ const pages = {
                                     <p class="help">Be as detailed as possible to attract buyers</p>
                                 </div>
 
+                                <div class="field">
+                                    <label class="label">Picture (optional)</label>
+                                    <div class="control">
+                                        <div class="file has-name is-fullwidth">
+                                            <label class="file-label">
+                                                <input class="file-input" type="file" name="listing-image" accept="image/*" id="listingImageInput">
+                                                <span class="file-cta">
+                                                    <span class="file-icon">
+                                                        <i class="fas fa-upload"></i>
+                                                    </span>
+                                                    <span class="file-label">
+                                                        Choose a file…
+                                                    </span>
+                                                </span>
+                                                <span class="file-name" id="listingImageName">
+                                                    No file selected
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <p class="help">Upload a picture of your golf club (optional)</p>
+                                </div>
+
                                 <div class="field is-grouped">
                                     <div class="control">
                                         <button class="button is-primary" type="submit">
@@ -343,10 +432,10 @@ function initAuth() {
 async function signUp(email, password, fullName) {
     try {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        alert('Account created successfully! Welcome, ' + fullName);
+        showNotification('Account created successfully! Welcome, ' + fullName, 'success');
         return true;
     } catch (error) {
-        alert('Sign up failed: ' + error.message);
+        showNotification('Sign up failed: ' + error.message, 'error');
         return false;
     }
 }
@@ -357,10 +446,10 @@ async function signUp(email, password, fullName) {
 async function signIn(email, password) {
     try {
         await signInWithEmailAndPassword(auth, email, password);
-        alert('Signed in successfully!');
+        showNotification('Signed in successfully!', 'success');
         return true;
     } catch (error) {
-        alert('Sign in failed: ' + error.message);
+        showNotification('Sign in failed: ' + error.message, 'error');
         return false;
     }
 }
@@ -371,11 +460,11 @@ async function signIn(email, password) {
 async function signOutUser() {
     try {
         await signOut(auth);
-        alert('Signed out successfully!');
+        showNotification('Signed out successfully!', 'success');
         loadPage('home');
         return true;
     } catch (error) {
-        alert('Error signing out: ' + error.message);
+        showNotification('Error signing out: ' + error.message, 'error');
         return false;
     }
 }
@@ -418,17 +507,40 @@ function updateNavBar(isLoggedIn) {
  * Create a new listing in Firestore
  * Adds a new golf club listing to the database
  */
-async function createListing(listingData) {
+async function createListing(listingData, imageFile = null) {
     try {
         // Check if user is signed in
         if (!currentUser) {
-            alert('Please sign in to create a listing');
+            showNotification('Please sign in to create a listing', 'warning');
             return false;
+        }
+
+        let imageUrl = null;
+
+        // Upload image if provided
+        if (imageFile) {
+            try {
+                // Create a unique filename using timestamp and user ID
+                const timestamp = Date.now();
+                const fileName = `listings/${currentUser.uid}/${timestamp}_${imageFile.name}`;
+                const storageRef = ref(storage, fileName);
+
+                // Upload the file
+                showNotification('Uploading image...', 'info');
+                await uploadBytes(storageRef, imageFile);
+
+                // Get the download URL
+                imageUrl = await getDownloadURL(storageRef);
+            } catch (uploadError) {
+                showNotification('Error uploading image: ' + uploadError.message, 'error');
+                return false;
+            }
         }
 
         // Add user info and timestamp to the listing
         const listing = {
             ...listingData,
+            imageUrl: imageUrl,
             userId: currentUser.uid,
             userEmail: currentUser.email,
             createdAt: serverTimestamp()
@@ -436,10 +548,10 @@ async function createListing(listingData) {
 
         // Add to Firestore
         await addDoc(collection(db, "listings"), listing);
-        alert('Listing created successfully!');
+        showNotification('Listing created successfully!', 'success');
         return true;
     } catch (error) {
-        alert('Error creating listing: ' + error.message);
+        showNotification('Error creating listing: ' + error.message, 'error');
         return false;
     }
 }
@@ -465,7 +577,7 @@ async function getAllListings() {
 
         return listings;
     } catch (error) {
-        alert('Error loading listings: ' + error.message);
+        showNotification('Error loading listings: ' + error.message, 'error');
         return [];
     }
 }
@@ -503,7 +615,7 @@ async function getFilteredListings(clubType, priceRange) {
 
         return listings;
     } catch (error) {
-        alert('Error filtering listings: ' + error.message);
+        showNotification('Error filtering listings: ' + error.message, 'error');
         return [];
     }
 }
@@ -515,16 +627,16 @@ async function getFilteredListings(clubType, priceRange) {
 async function deleteListing(listingId) {
     try {
         if (!currentUser) {
-            alert('Please sign in to delete listings');
+            showNotification('Please sign in to delete listings', 'warning');
             return false;
         }
 
         // Delete from Firestore
         await deleteDoc(doc(db, "listings", listingId));
-        alert('Listing deleted successfully!');
+        showNotification('Listing deleted successfully!', 'success');
         return true;
     } catch (error) {
-        alert('Error deleting listing: ' + error.message);
+        showNotification('Error deleting listing: ' + error.message, 'error');
         return false;
     }
 }
@@ -564,7 +676,7 @@ function attachEventListeners(pageName) {
 
                 // Check if user is signed in
                 if (!currentUser) {
-                    alert('Please sign in to create a listing');
+                    showNotification('Please sign in to create a listing', 'warning');
                     openModal('signinModal');
                     return;
                 }
@@ -581,15 +693,37 @@ function attachEventListeners(pageName) {
 
                 // Validate required fields
                 if (!listingData.clubName || !listingData.clubType || !listingData.condition || !listingData.price || !listingData.description) {
-                    alert('Please fill in all required fields');
+                    showNotification('Please fill in all required fields', 'warning');
                     return;
                 }
 
+                // Get image file if selected
+                const imageInput = document.getElementById('listingImageInput');
+                const imageFile = imageInput && imageInput.files.length > 0 ? imageInput.files[0] : null;
+
                 // Create the listing
-                const success = await createListing(listingData);
+                const success = await createListing(listingData, imageFile);
                 if (success) {
                     form.reset();
+                    // Reset file input display
+                    const fileNameDisplay = document.getElementById('listingImageName');
+                    if (fileNameDisplay) {
+                        fileNameDisplay.textContent = 'No file selected';
+                    }
                     loadPage('browse');
+                }
+            });
+        }
+
+        // Handle file input to show selected filename
+        const fileInput = document.getElementById('listingImageInput');
+        const fileNameDisplay = document.getElementById('listingImageName');
+        if (fileInput && fileNameDisplay) {
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    fileNameDisplay.textContent = e.target.files[0].name;
+                } else {
+                    fileNameDisplay.textContent = 'No file selected';
                 }
             });
         }
@@ -666,11 +800,14 @@ async function displayListings(clubType = null, priceRange = null) {
             </button>
         ` : '';
 
+        // Use uploaded image if available, otherwise use placeholder
+        const imageUrl = listing.imageUrl || 'https://bulma.io/images/placeholders/640x480.png';
+
         card.innerHTML = `
             <div class="card">
                 <div class="card-image">
                     <figure class="image is-4by3">
-                        <img src="https://bulma.io/images/placeholders/640x480.png" alt="${listing.clubName}">
+                        <img src="${imageUrl}" alt="${listing.clubName}" style="object-fit: cover;">
                     </figure>
                 </div>
                 <div class="card-content">
@@ -770,13 +907,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Validate passwords match
             if (password !== confirmPassword) {
-                alert('Passwords do not match');
+                showNotification('Passwords do not match', 'warning');
                 return;
             }
 
             // Validate password length
             if (password.length < 6) {
-                alert('Password must be at least 6 characters');
+                showNotification('Password must be at least 6 characters', 'warning');
                 return;
             }
 
