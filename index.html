@@ -79,9 +79,6 @@
         </div>
     </nav>
 
-    <!-- Notification Container -->
-    <div id="notification-container" style="position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 400px;"></div>
-
     <!-- Main Content Container -->
     <div id="main-content">
         <!-- Home page content will be loaded here by default -->
@@ -95,8 +92,8 @@
                 <p class="modal-card-title">Create Your Account</p>
                 <button class="delete" aria-label="close" onclick="closeModal('signupModal')"></button>
             </header>
-            <form id="signupForm">
-                <section class="modal-card-body">
+            <section class="modal-card-body">
+                <form id="signupForm">
                     <div class="field">
                         <label class="label">Full Name</label>
                         <div class="control has-icons-left">
@@ -136,12 +133,13 @@
                             </span>
                         </div>
                     </div>
-                </section>
-                <footer class="modal-card-foot">
-                    <button class="button is-primary" type="submit">Sign Up</button>
-                    <button class="button" type="button" onclick="closeModal('signupModal')">Cancel</button>
-                </footer>
-            </form>
+
+                </form>
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button is-primary" type="submit">Sign Up</button>
+                <button class="button" onclick="closeModal('signupModal')">Cancel</button>
+            </footer>
         </div>
     </div>
 
@@ -153,8 +151,8 @@
                 <p class="modal-card-title">Sign In to Your Account</p>
                 <button class="delete" aria-label="close" onclick="closeModal('signinModal')"></button>
             </header>
-            <form id="signinForm">
-                <section class="modal-card-body">
+            <section class="modal-card-body">
+                <form id="signinForm">
                     <div class="field">
                         <label class="label">Email</label>
                         <div class="control has-icons-left">
@@ -174,16 +172,70 @@
                             </span>
                         </div>
                     </div>
-                </section>
-                <footer class="modal-card-foot">
-                    <button class="button is-primary" type="submit">Sign In</button>
-                    <button class="button" type="button" onclick="closeModal('signinModal')">Cancel</button>
-                </footer>
-            </form>
+                </form>
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button is-primary" type="submit">Sign In</button>
+                <button class="button" onclick="closeModal('signinModal')">Cancel</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Contact Seller Modal -->
+    <div id="contactModal" class="modal">
+        <div class="modal-background" onclick="closeModal('contactModal')"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Contact Seller</p>
+                <button class="delete" aria-label="close" onclick="closeModal('contactModal')"></button>
+            </header>
+            <section class="modal-card-body">
+                <div class="content">
+                    <h4 id="contactItemName">Item Name</h4>
+                    <p class="mb-4">Send a message to the seller about this listing.</p>
+                </div>
+                <form id="contactForm">
+                    <div class="field">
+                        <label class="label">Your Name</label>
+                        <div class="control has-icons-left">
+                            <input class="input" type="text" placeholder="John Doe" required>
+                            <span class="icon is-small is-left">
+                                <i class="fas fa-user"></i>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label class="label">Your Email</label>
+                        <div class="control has-icons-left">
+                            <input class="input" type="email" placeholder="john@example.com" required>
+                            <span class="icon is-small is-left">
+                                <i class="fas fa-envelope"></i>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label class="label">Message</label>
+                        <div class="control">
+                            <textarea class="textarea" placeholder="Hi, I'm interested in this club..." rows="4" required></textarea>
+                        </div>
+                    </div>
+                </form>
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button is-primary" type="submit">
+                    <span class="icon">
+                        <i class="fas fa-paper-plane"></i>
+                    </span>
+                    <span>Send Message</span>
+                </button>
+                <button class="button" onclick="closeModal('contactModal')">Cancel</button>
+            </footer>
         </div>
     </div>
 
     <!-- JavaScript -->
-    <script type="module" src="app.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
