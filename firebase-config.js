@@ -8,6 +8,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getStorage } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
 // Firebase project configuration (provided by Firebase Console)
 const firebaseConfig = {
@@ -25,3 +26,4 @@ const app = initializeApp(firebaseConfig);
 // Get Firebase services we'll use in our app
 export const auth = getAuth(app);      // For user authentication (sign up/sign in)
 export const db = getFirestore(app);   // For database operations (store/retrieve data)
+export const storage = getStorage(app); // For file storage (images, etc.)
