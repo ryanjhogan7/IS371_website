@@ -9,8 +9,40 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <!-- Load JavaScript early to ensure functions are available for onclick handlers -->
-    <script type="module" src="app.js"></script>
+    <!-- Preload module to start loading early -->
+    <link rel="modulepreload" href="app.js">
+    <link rel="modulepreload" href="firebase-config.js">
+
+    <!-- Safe wrapper functions that wait for module to load -->
+    <script>
+        // These wrapper functions ensure onclick handlers work even if module hasn't loaded yet
+        window.safeLoadPage = function(page) {
+            if (window.loadPage) {
+                window.loadPage(page);
+            } else {
+                console.warn('Module not loaded yet, waiting...');
+                setTimeout(() => window.safeLoadPage(page), 100);
+            }
+        };
+
+        window.safeOpenModal = function(modalId) {
+            if (window.openModal) {
+                window.openModal(modalId);
+            } else {
+                console.warn('Module not loaded yet, waiting...');
+                setTimeout(() => window.safeOpenModal(modalId), 100);
+            }
+        };
+
+        window.safeCloseModal = function(modalId) {
+            if (window.closeModal) {
+                window.closeModal(modalId);
+            } else {
+                console.warn('Module not loaded yet, waiting...');
+                setTimeout(() => window.safeCloseModal(modalId), 100);
+            }
+        };
+    </script>
 
     <style>
         /* Minimal custom styling - Bulma does the heavy lifting */
@@ -44,7 +76,7 @@
     <nav class="navbar is-dark" role="navigation" aria-label="main navigation">
         <div class="container">
             <div class="navbar-brand">
-                <a class="navbar-item" href="#" onclick="loadPage('home')">
+                <a class="navbar-item" href="#" onclick="safeLoadPage('home')">
                     <h1 class="title is-4 has-text-white">GolfClub Auctions</h1>
                 </a>
                 <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarMenu">
@@ -56,13 +88,13 @@
 
             <div id="navbarMenu" class="navbar-menu">
                 <div class="navbar-start">
-                    <a class="navbar-item has-text-white" onclick="loadPage('home')">
+                    <a class="navbar-item has-text-white" onclick="safeLoadPage('home')">
                         <i class="fas fa-home mr-2"></i> Home
                     </a>
-                    <a class="navbar-item has-text-white" onclick="loadPage('browse')">
+                    <a class="navbar-item has-text-white" onclick="safeLoadPage('browse')">
                         <i class="fas fa-search mr-2"></i> Browse Auctions
                     </a>
-                    <a class="navbar-item has-text-white" onclick="loadPage('create')">
+                    <a class="navbar-item has-text-white" onclick="safeLoadPage('create')">
                         <i class="fas fa-plus-circle mr-2"></i> Create Listing
                     </a>
                 </div>
@@ -70,10 +102,10 @@
                 <div class="navbar-end">
                     <div class="navbar-item">
                         <div class="buttons">
-                            <button class="button is-light" onclick="openModal('signinModal')">
+                            <button class="button is-light" onclick="safeOpenModal('signinModal')">
                                 <strong>Sign In</strong>
                             </button>
-                            <button class="button is-primary" onclick="openModal('signupModal')">
+                            <button class="button is-primary" onclick="safeOpenModal('signupModal')">
                                 <strong>Sign Up</strong>
                             </button>
                         </div>
@@ -93,11 +125,11 @@
 
     <!-- Sign Up Modal -->
     <div id="signupModal" class="modal">
-        <div class="modal-background" onclick="closeModal('signupModal')"></div>
+        <div class="modal-background" onclick="safeCloseModal('signupModal')"></div>
         <div class="modal-card">
             <header class="modal-card-head">
                 <p class="modal-card-title">Create Your Account</p>
-                <button class="delete" aria-label="close" onclick="closeModal('signupModal')"></button>
+                <button class="delete" aria-label="close" onclick="safeCloseModal('signupModal')"></button>
             </header>
             <form id="signupForm">
                 <section class="modal-card-body">
@@ -143,7 +175,7 @@
                 </section>
                 <footer class="modal-card-foot">
                     <button class="button is-primary" type="submit">Sign Up</button>
-                    <button class="button" type="button" onclick="closeModal('signupModal')">Cancel</button>
+                    <button class="button" type="button" onclick="safeCloseModal('signupModal')">Cancel</button>
                 </footer>
             </form>
         </div>
@@ -151,11 +183,11 @@
 
     <!-- Sign In Modal -->
     <div id="signinModal" class="modal">
-        <div class="modal-background" onclick="closeModal('signinModal')"></div>
+        <div class="modal-background" onclick="safeCloseModal('signinModal')"></div>
         <div class="modal-card">
             <header class="modal-card-head">
                 <p class="modal-card-title">Sign In to Your Account</p>
-                <button class="delete" aria-label="close" onclick="closeModal('signinModal')"></button>
+                <button class="delete" aria-label="close" onclick="safeCloseModal('signinModal')"></button>
             </header>
             <form id="signinForm">
                 <section class="modal-card-body">
@@ -181,10 +213,13 @@
                 </section>
                 <footer class="modal-card-foot">
                     <button class="button is-primary" type="submit">Sign In</button>
-                    <button class="button" type="button" onclick="closeModal('signinModal')">Cancel</button>
+                    <button class="button" type="button" onclick="safeCloseModal('signinModal')">Cancel</button>
                 </footer>
             </form>
         </div>
     </div>
+
+    <!-- JavaScript - loaded at end but preloaded in head for faster module resolution -->
+    <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -870,13 +870,19 @@ function closeModal(modalId) {
 
 // ==================== MAKE FUNCTIONS AVAILABLE TO HTML ====================
 // These functions are called from onclick attributes in HTML
-// IMPORTANT: These MUST be assigned outside of DOMContentLoaded so they're available
-// immediately when the module loads (fixes Firebase deployment timing issues)
+// IMPORTANT: These MUST be assigned IMMEDIATELY when module loads (not in DOMContentLoaded)
+// to prevent timing issues on Firebase deployment where network latency can cause
+// the module to load after users attempt to click buttons
+
+// Assign functions to window immediately
 window.loadPage = loadPage;
 window.openModal = openModal;
 window.closeModal = closeModal;
 window.signOutUser = signOutUser;
 window.handleDelete = handleDelete;
+
+// Signal that the module has loaded and functions are ready
+window.__appModuleLoaded = true;
 
 // ==================== INITIALIZE APP WHEN PAGE LOADS ====================
 document.addEventListener('DOMContentLoaded', () => {
