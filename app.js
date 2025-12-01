@@ -1,106 +1,4 @@
-/*
- * GolfClub Auctions - Main Application File
- * IS 371 Final Project by Ryan Hogan and Alan Sogolov
- *
- * This file contains all the JavaScript logic for our Single Page Application:
- * - Firebase Authentication (sign up, sign in, sign out)
- * - Firestore Database operations (create, read, delete listings)
- * - Page navigation and UI updates
- * - Form handling and filtering
- */
-
-// ==================== FIREBASE IMPORTS ====================
-// Import Firebase configuration and necessary functions
-import { auth, db, storage } from './firebase-config.js';
-import {
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
-    signOut,
-    onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import {
-    collection,
-    addDoc,
-    getDocs,
-    deleteDoc,
-    doc,
-    query,
-    orderBy,
-    where,
-    serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import {
-    ref,
-    uploadBytes,
-    getDownloadURL
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
-
-// ==================== GLOBAL VARIABLES ====================
-let currentUser = null;  // Stores the currently logged-in user (null if not logged in)
-
-// ==================== NOTIFICATION SYSTEM ====================
-
-/**
- * Show a notification message instead of using alert()
- * @param {string} message - The message to display
- * @param {string} type - The type of notification: 'success', 'error', 'warning', 'info'
- */
-function showNotification(message, type = 'info') {
-    const container = document.getElementById('notification-container');
-    if (!container) return;
-
-    // Determine notification color based on type
-    let notificationClass = 'is-info';
-    let iconClass = 'fa-info-circle';
-
-    switch(type) {
-        case 'success':
-            notificationClass = 'is-success';
-            iconClass = 'fa-check-circle';
-            break;
-        case 'error':
-            notificationClass = 'is-danger';
-            iconClass = 'fa-exclamation-circle';
-            break;
-        case 'warning':
-            notificationClass = 'is-warning';
-            iconClass = 'fa-exclamation-triangle';
-            break;
-    }
-
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.className = `notification ${notificationClass} mb-3`;
-    notification.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
-    notification.innerHTML = `
-        <button class="delete"></button>
-        <span class="icon">
-            <i class="fas ${iconClass}"></i>
-        </span>
-        <span>${message}</span>
-    `;
-
-    // Add to container
-    container.appendChild(notification);
-
-    // Add delete functionality
-    const deleteBtn = notification.querySelector('.delete');
-    deleteBtn.addEventListener('click', () => {
-        notification.style.animation = 'fadeOut 0.3s';
-        setTimeout(() => notification.remove(), 300);
-    });
-
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-        if (notification.parentElement) {
-            notification.style.animation = 'fadeOut 0.3s';
-            setTimeout(() => notification.remove(), 300);
-        }
-    }, 5000);
-}
-
-// ==================== PAGE CONTENT TEMPLATES ====================
-// These are the different "pages" of our Single Page Application
+// Page content templates
 const pages = {
     home: `
         <!-- Hero Section -->
@@ -120,7 +18,7 @@ const pages = {
                             <h2 class="subtitle is-3 has-text-white mb-6">
                                 Buy and sell used golf clubs
                             </h2>
-
+                            
                             <div class="columns is-mobile is-multiline">
                                 <div class="column is-half-mobile is-6-tablet is-6-desktop">
                                     <div class="box has-text-centered p-6" onclick="loadPage('browse')" style="cursor: pointer; height: 100%;">
@@ -137,7 +35,7 @@ const pages = {
                                         </button>
                                     </div>
                                 </div>
-
+                                
                                 <div class="column is-half-mobile is-6-tablet is-6-desktop">
                                     <div class="box has-text-centered p-6" onclick="loadPage('create')" style="cursor: pointer; height: 100%;">
                                         <span class="icon is-large has-text-primary mb-4">
@@ -184,16 +82,14 @@ const pages = {
                                 <label class="label">Club Type</label>
                                 <div class="control">
                                     <div class="select is-fullwidth">
-                                        <select id="clubTypeFilter">
+                                        <select>
                                             <option>All Types</option>
-                                            <option>Driver</option>
-                                            <option>Fairway Wood</option>
-                                            <option>Hybrid</option>
-                                            <option>Iron Set</option>
-                                            <option>Individual Iron</option>
-                                            <option>Wedge</option>
-                                            <option>Putter</option>
-                                            <option>Complete Set</option>
+                                            <option>Drivers</option>
+                                            <option>Woods</option>
+                                            <option>Irons</option>
+                                            <option>Wedges</option>
+                                            <option>Putters</option>
+                                            <option>Complete Sets</option>
                                         </select>
                                     </div>
                                 </div>
@@ -204,7 +100,7 @@ const pages = {
                                 <label class="label">Price Range</label>
                                 <div class="control">
                                     <div class="select is-fullwidth">
-                                        <select id="priceRangeFilter">
+                                        <select>
                                             <option>Any Price</option>
                                             <option>Under $100</option>
                                             <option>$100 - $250</option>
@@ -217,22 +113,45 @@ const pages = {
                         </div>
                     </div>
                     <div class="field">
-                        <button class="button is-primary" id="applyFiltersBtn">
+                        <button class="button is-primary">
                             <span class="icon">
                                 <i class="fas fa-filter"></i>
                             </span>
                             <span>Apply Filters</span>
                         </button>
-                        <button class="button is-light" id="clearFiltersBtn">Clear</button>
+                        <button class="button is-light">Clear</button>
                     </div>
                 </div>
 
                 <!-- Auction Grid -->
-                <div id="listings-container" class="columns is-multiline">
+                <div class="columns is-multiline">
                     <div class="column is-12">
-                        <p id="listings-count" class="has-text-grey">Loading listings...</p>
+                        <p class="has-text-grey">Showing 24 of 156 auctions</p>
                     </div>
-                    <!-- Listings will be loaded dynamically here -->
+                    <!-- Repeat auction cards here (same structure as home page) -->
+                    <div class="column is-3">
+                        <div class="card">
+                            <div class="card-image">
+                                <figure class="image is-4by3">
+                                    <img src="https://bulma.io/images/placeholders/640x480.png" alt="Golf Club">
+                                </figure>
+                            </div>
+                            <div class="card-content">
+                                <p class="title is-5">Ping G425 Driver</p>
+                                <p class="subtitle is-6 has-text-grey">Like new, 9° loft, stiff flex</p>
+                                <div class="content">
+                                    <div class="mb-3">
+                                        <span class="bid-price">Asking Price: $195</span>
+                                    </div>
+                                    <button class="button is-primary is-fullwidth" onclick="openContactModal('Ping G425 Driver')">
+                                        <span class="icon"><i class="fas fa-envelope"></i></span>
+                                        <span>Contact Seller</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Add more cards as needed -->
                 </div>
 
                 <!-- Pagination -->
@@ -351,26 +270,34 @@ const pages = {
                                 </div>
 
                                 <div class="field">
-                                    <label class="label">Picture (optional)</label>
-                                    <div class="control">
-                                        <div class="file has-name is-fullwidth">
-                                            <label class="file-label">
-                                                <input class="file-input" type="file" name="listing-image" accept="image/*" id="listingImageInput">
-                                                <span class="file-cta">
-                                                    <span class="file-icon">
-                                                        <i class="fas fa-upload"></i>
-                                                    </span>
-                                                    <span class="file-label">
-                                                        Choose a file…
-                                                    </span>
+                                    <label class="label">Upload Photos</label>
+                                    <div class="file has-name is-fullwidth">
+                                        <label class="file-label">
+                                            <input class="file-input" type="file" name="photos" multiple accept="image/*">
+                                            <span class="file-cta">
+                                                <span class="file-icon">
+                                                    <i class="fas fa-upload"></i>
                                                 </span>
-                                                <span class="file-name" id="listingImageName">
-                                                    No file selected
+                                                <span class="file-label">
+                                                    Choose photos…
                                                 </span>
-                                            </label>
-                                        </div>
+                                            </span>
+                                            <span class="file-name">
+                                                No file selected
+                                            </span>
+                                        </label>
                                     </div>
-                                    <p class="help">Upload a picture of your golf club (optional)</p>
+                                    <p class="help">Upload up to 5 photos (JPG, PNG)</p>
+                                </div>
+
+                                <div class="field">
+                                    <label class="label">Contact Information</label>
+                                    <div class="control has-icons-left">
+                                        <input class="input" type="email" placeholder="your-email@example.com" required>
+                                        <span class="icon is-left">
+                                            <i class="fas fa-envelope"></i>
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <div class="field is-grouped">
@@ -405,452 +332,38 @@ const pages = {
     `
 };
 
-// ==================== AUTHENTICATION FUNCTIONS ====================
-
-/**
- * Initialize authentication state listener
- * This watches for when users sign in or out and updates the UI accordingly
- */
-function initAuth() {
-    onAuthStateChanged(auth, (user) => {
-        if (user) {
-            // User is signed in
-            currentUser = user;
-            updateNavBar(true);
-        } else {
-            // User is signed out
-            currentUser = null;
-            updateNavBar(false);
-        }
-    });
-}
-
-/**
- * Sign up a new user
- * Creates a new account in Firebase Authentication
- */
-async function signUp(email, password, fullName) {
-    try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        showNotification('Account created successfully! Welcome, ' + fullName, 'success');
-        return true;
-    } catch (error) {
-        showNotification('Sign up failed: ' + error.message, 'error');
-        return false;
-    }
-}
-
-/**
- * Sign in an existing user
- */
-async function signIn(email, password) {
-    try {
-        await signInWithEmailAndPassword(auth, email, password);
-        showNotification('Signed in successfully!', 'success');
-        return true;
-    } catch (error) {
-        showNotification('Sign in failed: ' + error.message, 'error');
-        return false;
-    }
-}
-
-/**
- * Sign out the current user
- */
-async function signOutUser() {
-    try {
-        await signOut(auth);
-        showNotification('Signed out successfully!', 'success');
-        loadPage('home');
-        return true;
-    } catch (error) {
-        showNotification('Error signing out: ' + error.message, 'error');
-        return false;
-    }
-}
-
-/**
- * Update navigation bar based on authentication state
- * Shows different buttons depending on whether user is logged in
- */
-function updateNavBar(isLoggedIn) {
-    const navButtons = document.querySelector('.navbar-end .buttons');
-
-    if (isLoggedIn && currentUser) {
-        // User is logged in - show welcome message and sign out button
-        navButtons.innerHTML = `
-            <div class="navbar-item has-text-white">
-                Welcome, ${currentUser.email}
-            </div>
-            <div class="navbar-item">
-                <button class="button is-light" onclick="signOutUser()">
-                    Sign Out
-                </button>
-            </div>
-        `;
-    } else {
-        // User is not logged in - show sign in and sign up buttons
-        navButtons.innerHTML = `
-            <button class="button is-light" onclick="openModal('signinModal')">
-                <strong>Sign In</strong>
-            </button>
-            <button class="button is-primary" onclick="openModal('signupModal')">
-                <strong>Sign Up</strong>
-            </button>
-        `;
-    }
-}
-
-// ==================== FIRESTORE DATABASE FUNCTIONS ====================
-
-/**
- * Create a new listing in Firestore
- * Adds a new golf club listing to the database
- */
-async function createListing(listingData, imageFile = null) {
-    try {
-        // Check if user is signed in
-        if (!currentUser) {
-            showNotification('Please sign in to create a listing', 'warning');
-            return false;
-        }
-
-        let imageUrl = null;
-
-        // Upload image if provided
-        if (imageFile) {
-            try {
-                // Create a unique filename using timestamp and user ID
-                const timestamp = Date.now();
-                const fileName = `listings/${currentUser.uid}/${timestamp}_${imageFile.name}`;
-                const storageRef = ref(storage, fileName);
-
-                // Upload the file
-                showNotification('Uploading image...', 'info');
-                await uploadBytes(storageRef, imageFile);
-
-                // Get the download URL
-                imageUrl = await getDownloadURL(storageRef);
-            } catch (uploadError) {
-                showNotification('Error uploading image: ' + uploadError.message, 'error');
-                return false;
-            }
-        }
-
-        // Add user info and timestamp to the listing
-        const listing = {
-            ...listingData,
-            imageUrl: imageUrl,
-            userId: currentUser.uid,
-            userEmail: currentUser.email,
-            createdAt: serverTimestamp()
-        };
-
-        // Add to Firestore
-        await addDoc(collection(db, "listings"), listing);
-        showNotification('Listing created successfully!', 'success');
-        return true;
-    } catch (error) {
-        showNotification('Error creating listing: ' + error.message, 'error');
-        return false;
-    }
-}
-
-/**
- * Get all listings from Firestore
- * Returns an array of all golf club listings, newest first
- */
-async function getAllListings() {
-    try {
-        // Create a query to get all listings, ordered by creation date
-        const q = query(collection(db, "listings"), orderBy("createdAt", "desc"));
-        const querySnapshot = await getDocs(q);
-
-        // Convert Firestore documents to an array of listing objects
-        const listings = [];
-        querySnapshot.forEach((doc) => {
-            listings.push({
-                id: doc.id,
-                ...doc.data()
-            });
-        });
-
-        return listings;
-    } catch (error) {
-        showNotification('Error loading listings: ' + error.message, 'error');
-        return [];
-    }
-}
-
-/**
- * Filter listings by club type and price range
- */
-async function getFilteredListings(clubType, priceRange) {
-    try {
-        let listings = await getAllListings();
-
-        // Filter by club type if specified
-        if (clubType && clubType !== "All Types") {
-            listings = listings.filter(listing => listing.clubType === clubType);
-        }
-
-        // Filter by price range if specified
-        if (priceRange && priceRange !== "Any Price") {
-            listings = listings.filter(listing => {
-                const price = parseFloat(listing.price);
-                switch (priceRange) {
-                    case "Under $100":
-                        return price < 100;
-                    case "$100 - $250":
-                        return price >= 100 && price <= 250;
-                    case "$250 - $500":
-                        return price >= 250 && price <= 500;
-                    case "$500+":
-                        return price >= 500;
-                    default:
-                        return true;
-                }
-            });
-        }
-
-        return listings;
-    } catch (error) {
-        showNotification('Error filtering listings: ' + error.message, 'error');
-        return [];
-    }
-}
-
-/**
- * Delete a listing from Firestore
- * Users can only delete their own listings
- */
-async function deleteListing(listingId) {
-    try {
-        if (!currentUser) {
-            showNotification('Please sign in to delete listings', 'warning');
-            return false;
-        }
-
-        // Delete from Firestore
-        await deleteDoc(doc(db, "listings", listingId));
-        showNotification('Listing deleted successfully!', 'success');
-        return true;
-    } catch (error) {
-        showNotification('Error deleting listing: ' + error.message, 'error');
-        return false;
-    }
-}
-
-// ==================== PAGE NAVIGATION FUNCTIONS ====================
-
-/**
- * Load a different page in our Single Page Application
- * Changes the main content area without refreshing the browser
- */
+// Function to load different pages
 function loadPage(pageName) {
     const mainContent = document.getElementById('main-content');
     mainContent.innerHTML = pages[pageName] || pages.home;
-
-    // Set up event listeners for the new page content
-    attachEventListeners(pageName);
-
-    // Load listings if we're on the browse page
-    if (pageName === 'browse') {
-        displayListings();
-    }
-
-    // Scroll to top of page
+    
+    // Update active navigation link
+    const navLinks = document.querySelectorAll('.navbar-item');
+    navLinks.forEach(link => {
+        link.classList.remove('is-active');
+    });
+    
+    // Attach event listeners to forms on the loaded page
+    attachPageEventListeners(pageName);
+    
+    // Scroll to top
     window.scrollTo(0, 0);
 }
 
-/**
- * Attach event listeners to forms and buttons on the current page
- */
-function attachEventListeners(pageName) {
+// Function to attach event listeners to dynamically loaded content
+function attachPageEventListeners(pageName) {
     if (pageName === 'create') {
-        // Handle create listing form submission
-        const form = document.getElementById('createListingForm');
-        if (form) {
-            form.addEventListener('submit', async (e) => {
+        const createListingForm = document.getElementById('createListingForm');
+        if (createListingForm) {
+            createListingForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-
-                // Check if user is signed in
-                if (!currentUser) {
-                    showNotification('Please sign in to create a listing', 'warning');
-                    openModal('signinModal');
-                    return;
-                }
-
-                // Get form data
-                const listingData = {
-                    clubName: form.querySelector('input[type="text"]').value,
-                    brand: form.querySelectorAll('select')[0].value,
-                    clubType: form.querySelectorAll('select')[1].value,
-                    condition: form.querySelectorAll('select')[2].value,
-                    price: form.querySelector('input[type="number"]').value,
-                    description: form.querySelector('textarea').value
-                };
-
-                // Validate required fields
-                if (!listingData.clubName || !listingData.clubType || !listingData.condition || !listingData.price || !listingData.description) {
-                    showNotification('Please fill in all required fields', 'warning');
-                    return;
-                }
-
-                // Get image file if selected
-                const imageInput = document.getElementById('listingImageInput');
-                const imageFile = imageInput && imageInput.files.length > 0 ? imageInput.files[0] : null;
-
-                // Create the listing
-                const success = await createListing(listingData, imageFile);
-                if (success) {
-                    form.reset();
-                    // Reset file input display
-                    const fileNameDisplay = document.getElementById('listingImageName');
-                    if (fileNameDisplay) {
-                        fileNameDisplay.textContent = 'No file selected';
-                    }
-                    loadPage('browse');
-                }
-            });
-        }
-
-        // Handle file input to show selected filename
-        const fileInput = document.getElementById('listingImageInput');
-        const fileNameDisplay = document.getElementById('listingImageName');
-        if (fileInput && fileNameDisplay) {
-            fileInput.addEventListener('change', (e) => {
-                if (e.target.files.length > 0) {
-                    fileNameDisplay.textContent = e.target.files[0].name;
-                } else {
-                    fileNameDisplay.textContent = 'No file selected';
-                }
-            });
-        }
-    } else if (pageName === 'browse') {
-        // Handle filter buttons
-        const applyBtn = document.getElementById('applyFiltersBtn');
-        const clearBtn = document.getElementById('clearFiltersBtn');
-
-        if (applyBtn) {
-            applyBtn.addEventListener('click', () => {
-                const clubType = document.getElementById('clubTypeFilter').value;
-                const priceRange = document.getElementById('priceRangeFilter').value;
-                displayListings(clubType, priceRange);
-            });
-        }
-
-        if (clearBtn) {
-            clearBtn.addEventListener('click', () => {
-                document.getElementById('clubTypeFilter').value = 'All Types';
-                document.getElementById('priceRangeFilter').value = 'Any Price';
-                displayListings();
+                loadPage('browse');
             });
         }
     }
 }
 
-/**
- * Display listings on the browse page
- * Fetches listings from Firestore and creates HTML cards for each one
- */
-async function displayListings(clubType = null, priceRange = null) {
-    const container = document.getElementById('listings-container');
-    const countElement = document.getElementById('listings-count');
-
-    if (!container || !countElement) return;
-
-    // Show loading message
-    countElement.textContent = 'Loading listings...';
-
-    // Clear existing listings (except the count element)
-    const existingCards = container.querySelectorAll('.column:not(:first-child)');
-    existingCards.forEach(el => el.remove());
-
-    // Get filtered listings from Firestore
-    const listings = await getFilteredListings(clubType, priceRange);
-
-    // Update count
-    countElement.textContent = `Showing ${listings.length} listing${listings.length !== 1 ? 's' : ''}`;
-
-    // Show message if no listings found
-    if (listings.length === 0) {
-        const message = document.createElement('div');
-        message.className = 'column is-12';
-        message.innerHTML = `
-            <div class="notification is-warning has-text-centered">
-                <p>No listings found. ${currentUser ? 'Be the first to create one!' : 'Sign in to create a listing.'}</p>
-            </div>
-        `;
-        container.appendChild(message);
-        return;
-    }
-
-    // Create a card for each listing
-    listings.forEach(listing => {
-        const card = document.createElement('div');
-        card.className = 'column is-3';
-
-        // Only show delete button if user owns this listing
-        const isOwner = currentUser && listing.userId === currentUser.uid;
-        const deleteBtn = isOwner ? `
-            <button class="button is-danger is-small is-fullwidth mt-2" onclick="handleDelete('${listing.id}')">
-                <span class="icon"><i class="fas fa-trash"></i></span>
-                <span>Delete</span>
-            </button>
-        ` : '';
-
-        // Use uploaded image if available, otherwise use placeholder
-        const imageUrl = listing.imageUrl || 'https://bulma.io/images/placeholders/640x480.png';
-
-        card.innerHTML = `
-            <div class="card">
-                <div class="card-image">
-                    <figure class="image is-4by3">
-                        <img src="${imageUrl}" alt="${listing.clubName}" style="object-fit: cover;">
-                    </figure>
-                </div>
-                <div class="card-content">
-                    <p class="title is-5">${listing.clubName}</p>
-                    <p class="subtitle is-6 has-text-grey">${listing.condition} - ${listing.brand || 'No brand'}</p>
-                    <div class="content">
-                        <p class="is-size-7 mb-2">${listing.description.substring(0, 100)}${listing.description.length > 100 ? '...' : ''}</p>
-                        <p class="is-size-7 has-text-grey mb-3">
-                            <span class="icon is-small"><i class="fas fa-user"></i></span>
-                            Seller: ${listing.userEmail}
-                        </p>
-                        <div class="mb-3">
-                            <span class="bid-price">$${listing.price}</span>
-                        </div>
-                        ${deleteBtn}
-                    </div>
-                </div>
-            </div>
-        `;
-        container.appendChild(card);
-    });
-}
-
-/**
- * Handle deleting a listing
- */
-async function handleDelete(listingId) {
-    if (!confirm('Are you sure you want to delete this listing?')) {
-        return;
-    }
-
-    const success = await deleteListing(listingId);
-    if (success) {
-        // Reload listings to show updated list
-        displayListings();
-    }
-}
-
-// ==================== MODAL FUNCTIONS ====================
-
-/**
- * Open a modal dialog
- */
+// Function to open modals
 function openModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) {
@@ -858,9 +371,7 @@ function openModal(modalId) {
     }
 }
 
-/**
- * Close a modal dialog
- */
+// Function to close modals
 function closeModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) {
@@ -868,83 +379,59 @@ function closeModal(modalId) {
     }
 }
 
-// ==================== MAKE FUNCTIONS AVAILABLE TO HTML ====================
-// These functions are called from onclick attributes in HTML
-window.loadPage = loadPage;
-window.openModal = openModal;
-window.closeModal = closeModal;
-window.signOutUser = signOutUser;
-window.handleDelete = handleDelete;
-
-// ==================== INITIALIZE APP WHEN PAGE LOADS ====================
+// // Function to open contact modal with item details
+function openContactModal(itemName) {
+    document.getElementById('contactItemName').textContent = itemName;
+    openModal('contactModal');
+}
+// Hamburger menu toggle for mobile
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize Firebase authentication
-    initAuth();
-
     // Load home page by default
     loadPage('home');
+    // Get all "navbar-burger" elements
+    const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
+    // Add a click event on each of them
+    $navbarBurgers.forEach(el => {
+        el.addEventListener('click', () => {
+            // Get the target from the "data-target" attribute
+            const target = el.dataset.target;
+            const $target = document.getElementById(target);
 
-    // Set up mobile hamburger menu
-    const burgers = document.querySelectorAll('.navbar-burger');
-    burgers.forEach(burger => {
-        burger.addEventListener('click', () => {
-            const target = document.getElementById(burger.dataset.target);
-            burger.classList.toggle('is-active');
-            target.classList.toggle('is-active');
+            // Toggle the "is-active" class on both the "navbar-burger" and the "navbar-menu"
+            el.classList.toggle('is-active');
+            $target.classList.toggle('is-active');
         });
     });
 
-    // Handle sign up form
+    // Form submissions (prevent default for now, will be connected to Firebase later)
     const signupForm = document.getElementById('signupForm');
     if (signupForm) {
-        signupForm.addEventListener('submit', async (e) => {
+        signupForm.addEventListener('submit', (e) => {
             e.preventDefault();
-
-            const fullName = signupForm.querySelector('input[type="text"]').value;
-            const email = signupForm.querySelector('input[type="email"]').value;
-            const password = signupForm.querySelectorAll('input[type="password"]')[0].value;
-            const confirmPassword = signupForm.querySelectorAll('input[type="password"]')[1].value;
-
-            // Validate passwords match
-            if (password !== confirmPassword) {
-                showNotification('Passwords do not match', 'warning');
-                return;
-            }
-
-            // Validate password length
-            if (password.length < 6) {
-                showNotification('Password must be at least 6 characters', 'warning');
-                return;
-            }
-
-            // Sign up the user
-            const success = await signUp(email, password, fullName);
-            if (success) {
-                signupForm.reset();
-                closeModal('signupModal');
-            }
+            alert('Sign up functionality will be connected to Firebase in Milestone 3');
+            closeModal('signupModal');
         });
     }
 
-    // Handle sign in form
     const signinForm = document.getElementById('signinForm');
     if (signinForm) {
-        signinForm.addEventListener('submit', async (e) => {
+        signinForm.addEventListener('submit', (e) => {
             e.preventDefault();
-
-            const email = signinForm.querySelector('input[type="email"]').value;
-            const password = signinForm.querySelector('input[type="password"]').value;
-
-            // Sign in the user
-            const success = await signIn(email, password);
-            if (success) {
-                signinForm.reset();
-                closeModal('signinModal');
-            }
+            alert('Sign in functionality will be connected to Firebase in Milestone 3');
+            closeModal('signinModal');
         });
     }
 
-    // Close modals when clicking outside
+    const contactForm = document.getElementById('contactForm');
+    if (contactForm) {
+        contactForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            alert('Message will be sent to seller when Firebase is integrated in Milestone 3');
+            closeModal('contactModal');
+        });
+    }
+
+    // Close modal when clicking outside
     document.querySelectorAll('.modal-background').forEach(bg => {
         bg.addEventListener('click', (e) => {
             const modal = e.target.closest('.modal');
