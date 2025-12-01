@@ -870,6 +870,8 @@ function closeModal(modalId) {
 
 // ==================== MAKE FUNCTIONS AVAILABLE TO HTML ====================
 // These functions are called from onclick attributes in HTML
+// IMPORTANT: These MUST be assigned outside of DOMContentLoaded so they're available
+// immediately when the module loads (fixes Firebase deployment timing issues)
 window.loadPage = loadPage;
 window.openModal = openModal;
 window.closeModal = closeModal;
