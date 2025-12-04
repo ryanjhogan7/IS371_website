@@ -11,7 +11,7 @@
 
 // ==================== FIREBASE IMPORTS ====================
 // Import Firebase configuration and necessary functions
-import { auth, db, storage } from './firebase-config.js';
+import { auth, db } from './firebase-config.js';
 import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
@@ -29,14 +29,32 @@ import {
     where,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import {
-    ref,
-    uploadBytes,
-    getDownloadURL
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
 // ==================== GLOBAL VARIABLES ====================
 let currentUser = null;  // Stores the currently logged-in user (null if not logged in)
+
+// ==================== HELPER FUNCTIONS ====================
+
+/**
+ * Get the stock image URL for a given club type
+ * @param {string} clubType - The type of golf club
+ * @returns {string} The path to the stock image for this club type
+ */
+function getStockImageForClubType(clubType) {
+    const imageMap = {
+        'Driver': 'assets/club-images/driver.svg',
+        'Fairway Wood': 'assets/club-images/fairway-wood.svg',
+        'Hybrid': 'assets/club-images/hybrid.svg',
+        'Iron Set': 'assets/club-images/iron-set.svg',
+        'Individual Iron': 'assets/club-images/individual-iron.svg',
+        'Wedge': 'assets/club-images/wedge.svg',
+        'Putter': 'assets/club-images/putter.svg',
+        'Complete Set': 'assets/club-images/complete-set.svg'
+    };
+
+    // Return the stock image for the club type, or a default if not found
+    return imageMap[clubType] || 'assets/club-images/driver.svg';
+}
 
 // ==================== NOTIFICATION SYSTEM ====================
 
@@ -350,29 +368,6 @@ const pages = {
                                     <p class="help">Be as detailed as possible to attract buyers</p>
                                 </div>
 
-                                <div class="field">
-                                    <label class="label">Picture (optional)</label>
-                                    <div class="control">
-                                        <div class="file has-name is-fullwidth">
-                                            <label class="file-label">
-                                                <input class="file-input" type="file" name="listing-image" accept="image/*" id="listingImageInput">
-                                                <span class="file-cta">
-                                                    <span class="file-icon">
-                                                        <i class="fas fa-upload"></i>
-                                                    </span>
-                                                    <span class="file-label">
-                                                        Choose a file…
-                                                    </span>
-                                                </span>
-                                                <span class="file-name" id="listingImageName">
-                                                    No file selected
-                                                </span>
-                                            </label>
-                                        </div>
-                                    </div>
-                                    <p class="help">Upload a picture of your golf club (optional)</p>
-                                </div>
-
                                 <div class="field is-grouped">
                                     <div class="control">
                                         <button class="button is-primary" type="submit">
@@ -515,27 +510,8 @@ async function createListing(listingData, imageFile = null) {
             return false;
         }
 
-        let imageUrl = null;
-
-        // Upload image if provided
-        if (imageFile) {
-            try {
-                // Create a unique filename using timestamp and user ID
-                const timestamp = Date.now();
-                const fileName = `listings/${currentUser.uid}/${timestamp}_${imageFile.name}`;
-                const storageRef = ref(storage, fileName);
-
-                // Upload the file
-                showNotification('Uploading image...', 'info');
-                await uploadBytes(storageRef, imageFile);
-
-                // Get the download URL
-                imageUrl = await getDownloadURL(storageRef);
-            } catch (uploadError) {
-                showNotification('Error uploading image: ' + uploadError.message, 'error');
-                return false;
-            }
-        }
+        // Use stock image based on club type instead of file upload
+        const imageUrl = getStockImageForClubType(listingData.clubType);
 
         // Add user info and timestamp to the listing
         const listing = {
@@ -697,33 +673,11 @@ function attachEventListeners(pageName) {
                     return;
                 }
 
-                // Get image file if selected
-                const imageInput = document.getElementById('listingImageInput');
-                const imageFile = imageInput && imageInput.files.length > 0 ? imageInput.files[0] : null;
-
-                // Create the listing
-                const success = await createListing(listingData, imageFile);
+                // Create the listing (stock images will be assigned automatically based on club type)
+                const success = await createListing(listingData);
                 if (success) {
                     form.reset();
-                    // Reset file input display
-                    const fileNameDisplay = document.getElementById('listingImageName');
-                    if (fileNameDisplay) {
-                        fileNameDisplay.textContent = 'No file selected';
-                    }
                     loadPage('browse');
-                }
-            });
-        }
-
-        // Handle file input to show selected filename
-        const fileInput = document.getElementById('listingImageInput');
-        const fileNameDisplay = document.getElementById('listingImageName');
-        if (fileInput && fileNameDisplay) {
-            fileInput.addEventListener('change', (e) => {
-                if (e.target.files.length > 0) {
-                    fileNameDisplay.textContent = e.target.files[0].name;
-                } else {
-                    fileNameDisplay.textContent = 'No file selected';
                 }
             });
         }
@@ -800,8 +754,8 @@ async function displayListings(clubType = null, priceRange = null) {
             </button>
         ` : '';
 
-        // Use uploaded image if available, otherwise use placeholder
-        const imageUrl = listing.imageUrl || 'https://bulma.io/images/placeholders/640x480.png';
+        // Use listing image if available, otherwise use stock image based on club type
+        const imageUrl = listing.imageUrl || getStockImageForClubType(listing.clubType);
 
         card.innerHTML = `
             <div class="card">
