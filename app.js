@@ -23,6 +23,7 @@ import {
     addDoc,
     getDocs,
     deleteDoc,
+    updateDoc,
     doc,
     query,
     orderBy,
@@ -559,6 +560,19 @@ async function getAllListings() {
 }
 
 /**
+ * Get a single listing by ID from Firestore
+ */
+async function getListingById(listingId) {
+    try {
+        const listings = await getAllListings();
+        return listings.find(listing => listing.id === listingId);
+    } catch (error) {
+        showNotification('Error loading listing: ' + error.message, 'error');
+        return null;
+    }
+}
+
+/**
  * Filter listings by club type and price range
  */
 async function getFilteredListings(clubType, priceRange) {
@@ -613,6 +627,33 @@ async function deleteListing(listingId) {
         return true;
     } catch (error) {
         showNotification('Error deleting listing: ' + error.message, 'error');
+        return false;
+    }
+}
+
+/**
+ * Update a listing in Firestore
+ * Users can only update their own listings
+ */
+async function updateListing(listingId, listingData) {
+    try {
+        if (!currentUser) {
+            showNotification('Please sign in to update listings', 'warning');
+            return false;
+        }
+
+        // Get the stock image for the new club type (in case it changed)
+        const imageUrl = getStockImageForClubType(listingData.clubType);
+
+        // Update the listing in Firestore
+        await updateDoc(doc(db, "listings", listingId), {
+            ...listingData,
+            imageUrl: imageUrl
+        });
+        showNotification('Listing updated successfully!', 'success');
+        return true;
+    } catch (error) {
+        showNotification('Error updating listing: ' + error.message, 'error');
         return false;
     }
 }
@@ -745,13 +786,19 @@ async function displayListings(clubType = null, priceRange = null) {
         const card = document.createElement('div');
         card.className = 'column is-3';
 
-        // Only show delete button if user owns this listing
+        // Only show edit and delete buttons if user owns this listing
         const isOwner = currentUser && listing.userId === currentUser.uid;
-        const deleteBtn = isOwner ? `
-            <button class="button is-danger is-small is-fullwidth mt-2" onclick="handleDelete('${listing.id}')">
-                <span class="icon"><i class="fas fa-trash"></i></span>
-                <span>Delete</span>
-            </button>
+        const actionButtons = isOwner ? `
+            <div class="buttons are-small mt-2">
+                <button class="button is-info is-small" onclick="handleEdit('${listing.id}')">
+                    <span class="icon"><i class="fas fa-edit"></i></span>
+                    <span>Edit</span>
+                </button>
+                <button class="button is-danger is-small" onclick="handleDelete('${listing.id}')">
+                    <span class="icon"><i class="fas fa-trash"></i></span>
+                    <span>Delete</span>
+                </button>
+            </div>
         ` : '';
 
         // Use listing image if available, otherwise use stock image based on club type
@@ -776,7 +823,7 @@ async function displayListings(clubType = null, priceRange = null) {
                         <div class="mb-3">
                             <span class="bid-price">$${listing.price}</span>
                         </div>
-                        ${deleteBtn}
+                        ${actionButtons}
                     </div>
                 </div>
             </div>
@@ -798,6 +845,34 @@ async function handleDelete(listingId) {
         // Reload listings to show updated list
         displayListings();
     }
+}
+
+/**
+ * Handle editing a listing
+ * Opens the edit modal and populates it with the listing data
+ */
+async function handleEdit(listingId) {
+    // Fetch the listing data
+    const listing = await getListingById(listingId);
+
+    if (!listing) {
+        showNotification('Could not load listing data', 'error');
+        return;
+    }
+
+    // Set the listing ID in the hidden field
+    document.getElementById('editListingId').value = listingId;
+
+    // Populate the form fields
+    document.getElementById('editClubName').value = listing.clubName;
+    document.getElementById('editBrand').value = listing.brand || 'Select Brand';
+    document.getElementById('editClubType').value = listing.clubType;
+    document.getElementById('editCondition').value = listing.condition;
+    document.getElementById('editPrice').value = listing.price;
+    document.getElementById('editDescription').value = listing.description;
+
+    // Open the modal
+    openModal('editModal');
 }
 
 // ==================== MODAL FUNCTIONS ====================
@@ -834,6 +909,7 @@ window.openModal = openModal;
 window.closeModal = closeModal;
 window.signOutUser = signOutUser;
 window.handleDelete = handleDelete;
+window.handleEdit = handleEdit;
 
 // Signal that the module has loaded and functions are ready
 window.__appModuleLoaded = true;
@@ -902,6 +978,45 @@ document.addEventListener('DOMContentLoaded', () => {
             if (success) {
                 signinForm.reset();
                 closeModal('signinModal');
+            }
+        });
+    }
+
+    // Handle edit listing form
+    const editForm = document.getElementById('editListingForm');
+    if (editForm) {
+        editForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Check if user is signed in
+            if (!currentUser) {
+                showNotification('Please sign in to edit listings', 'warning');
+                openModal('signinModal');
+                return;
+            }
+
+            // Get form data
+            const listingId = document.getElementById('editListingId').value;
+            const listingData = {
+                clubName: document.getElementById('editClubName').value,
+                brand: document.getElementById('editBrand').value,
+                clubType: document.getElementById('editClubType').value,
+                condition: document.getElementById('editCondition').value,
+                price: document.getElementById('editPrice').value,
+                description: document.getElementById('editDescription').value
+            };
+
+            // Validate required fields
+            if (!listingData.clubName || !listingData.clubType || !listingData.condition || !listingData.price || !listingData.description) {
+                showNotification('Please fill in all required fields', 'warning');
+                return;
+            }
+
+            // Update the listing
+            const success = await updateListing(listingId, listingData);
+            if (success) {
+                closeModal('editModal');
+                displayListings();
             }
         });
     }
