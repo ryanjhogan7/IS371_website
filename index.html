@@ -222,6 +222,104 @@
         </div>
     </div>
 
+    <!-- Edit Listing Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-background" onclick="safeCloseModal('editModal')"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Edit Listing</p>
+                <button class="delete" aria-label="close" onclick="safeCloseModal('editModal')"></button>
+            </header>
+            <form id="editListingForm">
+                <input type="hidden" id="editListingId">
+                <section class="modal-card-body">
+                    <div class="field">
+                        <label class="label">Club Name *</label>
+                        <div class="control">
+                            <input class="input" type="text" id="editClubName" placeholder="e.g., TaylorMade R15 Driver" required>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label class="label">Brand</label>
+                        <div class="control">
+                            <div class="select is-fullwidth">
+                                <select id="editBrand">
+                                    <option>Select Brand</option>
+                                    <option>TaylorMade</option>
+                                    <option>Callaway</option>
+                                    <option>Ping</option>
+                                    <option>Titleist</option>
+                                    <option>Cobra</option>
+                                    <option>Mizuno</option>
+                                    <option>Cleveland</option>
+                                    <option>Wilson</option>
+                                    <option>Other</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label class="label">Club Type *</label>
+                        <div class="control">
+                            <div class="select is-fullwidth">
+                                <select id="editClubType" required>
+                                    <option>Select Type</option>
+                                    <option>Driver</option>
+                                    <option>Fairway Wood</option>
+                                    <option>Hybrid</option>
+                                    <option>Iron Set</option>
+                                    <option>Individual Iron</option>
+                                    <option>Wedge</option>
+                                    <option>Putter</option>
+                                    <option>Complete Set</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label class="label">Condition *</label>
+                        <div class="control">
+                            <div class="select is-fullwidth">
+                                <select id="editCondition" required>
+                                    <option>Select Condition</option>
+                                    <option>Like New</option>
+                                    <option>Excellent</option>
+                                    <option>Very Good</option>
+                                    <option>Good</option>
+                                    <option>Fair</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label class="label">Asking Price * ($)</label>
+                        <div class="control has-icons-left">
+                            <input class="input" type="number" id="editPrice" placeholder="150" min="1" required>
+                            <span class="icon is-left">
+                                <i class="fas fa-dollar-sign"></i>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label class="label">Description *</label>
+                        <div class="control">
+                            <textarea class="textarea" id="editDescription" placeholder="Describe your club..." rows="5" required></textarea>
+                        </div>
+                    </div>
+                </section>
+                <footer class="modal-card-foot">
+                    <button class="button is-primary" type="submit">Update Listing</button>
+                    <button class="button" type="button" onclick="safeCloseModal('editModal')">Cancel</button>
+                </footer>
+            </form>
+        </div>
+    </div>
+
     <!-- JavaScript - loaded at end but preloaded in head for faster module resolution -->
     <script type="module" src="app.js"></script>
 </body>
