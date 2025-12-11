@@ -23,7 +23,6 @@
             if (window.loadPage) {
                 window.loadPage(page);
             } else {
-                console.warn('Module not loaded yet, waiting...');
                 setTimeout(() => window.safeLoadPage(page), 100);
             }
         };
@@ -32,7 +31,6 @@
             if (window.openModal) {
                 window.openModal(modalId);
             } else {
-                console.warn('Module not loaded yet, waiting...');
                 setTimeout(() => window.safeOpenModal(modalId), 100);
             }
         };
@@ -41,7 +39,6 @@
             if (window.closeModal) {
                 window.closeModal(modalId);
             } else {
-                console.warn('Module not loaded yet, waiting...');
                 setTimeout(() => window.safeCloseModal(modalId), 100);
             }
         };
